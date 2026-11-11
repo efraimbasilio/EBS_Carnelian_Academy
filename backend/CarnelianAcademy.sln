@@ -1,0 +1,28 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CarnelianAcademy.Api", "CarnelianAcademy.Api\CarnelianAcademy.Api.csproj", "{FF9619E5-7271-4BC9-8816-95AE91324DCA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CarnelianAcademy.Tests", "CarnelianAcademy.Tests\CarnelianAcademy.Tests.csproj", "{8CDD320A-465D-42BD-A844-2E02E4423D9C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FF9619E5-7271-4BC9-8816-95AE91324DCA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FF9619E5-7271-4BC9-8816-95AE91324DCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FF9619E5-7271-4BC9-8816-95AE91324DCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FF9619E5-7271-4BC9-8816-95AE91324DCA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8CDD320A-465D-42BD-A844-2E02E4423D9C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8CDD320A-465D-42BD-A844-2E02E4423D9C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8CDD320A-465D-42BD-A844-2E02E4423D9C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8CDD320A-465D-42BD-A844-2E02E4423D9C}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
