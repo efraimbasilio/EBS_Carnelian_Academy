@@ -1,7 +1,5 @@
 using System.Net;
 using System.Text.Json;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace CarnelianAcademy.Tests;
 
@@ -12,13 +10,8 @@ public class HealthEndpointTests
     [InlineData("Production")]
     public async Task GetHealth_ReturnsHealthyWithoutAuthentication(string environment)
     {
-        await using var factory = new WebApplicationFactory<Program>()
-            .WithWebHostBuilder(builder => builder.UseEnvironment(environment));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost"),
-            AllowAutoRedirect = false
-        });
+        await using var factory = TestHost.Create(environment);
+        using var client = factory.CreateHttpsClient();
 
         using var response = await client.GetAsync("/health");
 
@@ -29,5 +22,17 @@ public class HealthEndpointTests
         Assert.Equal(2, json.RootElement.EnumerateObject().Count());
         Assert.Equal("Healthy", json.RootElement.GetProperty("status").GetString());
         Assert.Equal("Carnelian Academy API", json.RootElement.GetProperty("application").GetString());
+    }
+
+    [Fact]
+    public async Task GetHealth_DoesNotDependOnDatabaseConnectivity()
+    {
+        // The default test connection string is unreachable; process health must still report healthy.
+        await using var factory = TestHost.Create("Production");
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.GetAsync("/health");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 }
