@@ -290,3 +290,13 @@ Generated from `dotnet list backend/CarnelianAcademy.sln package --include-trans
 | xunit.runner.visualstudio | - | 2.5.3 (direct) |
 
 </details>
+
+## D011 - Frontend stack and tooling
+
+Status: **APPROVED — LOCAL DEVELOPMENT** (repository owner; recorded 2026-11-21). Implemented in M01-T03; M01-T03 is **COMPLETED — APPROVED FOR LOCAL DEVELOPMENT** (2026-11-23; independent Code Guardian verdict PASS). Local development only under D009; PPG-001 remains OPEN and BLOCKING for production.
+
+- React 19 + Vite 8 + TypeScript, created from the official `create-vite` 9.3.4 `react-ts` template in `frontend/carnelian-academy-web`, managed with npm and a committed `package-lock.json`. Independent of backend source; no backend or CORS change in M01-T03.
+- ESLint 10 with type-aware `typescript-eslint` replaces the template's default oxlint, because the task requires ESLint and type-aware rules flag unsafe `any` usage. `eslint-plugin-jsx-a11y` is omitted because it does not declare ESLint 10 support; peer-dependency overrides were not used.
+- TypeScript is pinned to `~6.0.3` instead of the template's 7.0, because typescript-eslint 8.73 supports `>=4.8.4 <6.1.0`.
+- Vitest 5 + jsdom + React Testing Library. jsdom is held at 29.1.1 because jsdom 30+ requires Node `^24.15.0` and the verified local Node is 24.14.0; upgrading Node would allow a newer jsdom.
+- No router, component library, state library, or HTTP client until a task requires one. API configuration is a single typed, validated `VITE_API_BASE_URL`; browser-visible variables must never contain secrets.

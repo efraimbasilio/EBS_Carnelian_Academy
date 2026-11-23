@@ -2,7 +2,7 @@
 
 ## Scope
 
-V1 is a local-first school management application for approximately 300 students. Its planned modules are Student Information and Enrollment Management, and Billing and Collections Management. M01-T01 established a running API and integration testing infrastructure. M01-T02 adds the database foundation without business entities.
+V1 is a local-first school management application for approximately 300 students. Its planned modules are Student Information and Enrollment Management, and Billing and Collections Management. M01-T01 established a running API and integration testing infrastructure. M01-T02 adds the database foundation without business entities. M01-T03 adds a frontend application shell with no backend communication.
 
 ## Backend
 
@@ -30,9 +30,37 @@ The separate xUnit project references the API and uses WebApplicationFactory wit
 
 `EfCoreDatabaseConnectivityCheckTests` exercise the real EF Core SQL Server provider. Cancellation during the check is triggered deterministically from a `DbConnectionInterceptor` while EF Core opens the connection. This covers cancellation inside the EF Core operation at the connection-opening boundary, but not cancellation at an arbitrary point inside SqlClient's network handshake, which cannot be timed deterministically in a unit test; that path was observed only in the manual probes above. Probes confirmed that EF Core (8.0.10 and 8.0.34) converts an exception thrown while opening the connection into a `false` result (with or without cancellation), so the branch that wraps a non-cancellation exception is defensive and not uniquely exercised by these tests.
 
+## Frontend
+
+`frontend/carnelian-academy-web` is a React 19 + Vite 8 + TypeScript 6 single-page application, built and tested independently of the backend (decision D011). It shares no source files with the backend and, in M01-T03, makes no HTTP requests.
+
+```text
+src/
+  main.tsx                     entry point; mounts <App /> and global styles
+  app/App.tsx                  composes the layout and the dashboard page
+  components/layout/
+    AppLayout.tsx              shell: skip link, header, sidebar, main; owns mobile-menu state and focus
+    Header.tsx                 brand, current section, menu toggle (aria-expanded / aria-controls)
+    Sidebar.tsx                <nav aria-label="Main">; Dashboard link plus "Coming soon" entries
+  pages/DashboardPage.tsx      development-preview landing page, no data
+  config/env.ts                typed, lazily validated VITE_API_BASE_URL
+  styles/global.css            design tokens and responsive layout
+  test/setup.ts                jest-dom matchers and Testing Library cleanup
+```
+
+There is no router: Dashboard is the only page. Students, Enrollment, Billing & Payments, Reports, and Settings are listed as non-interactive "Coming soon" entries rather than links, so no route points at unimplemented functionality. No component library, state library, or HTTP client is used.
+
+Responsive behavior is CSS-driven. At 1024px and wider the sidebar is persistent and the menu toggle is hidden. Below 1024px the sidebar is an off-canvas panel, collapsed by default (`visibility: hidden`, so its contents are not focusable). The header toggle opens it and moves focus to its "Close navigation menu" button; the close button, the toggle, the backdrop, or Escape closes it and returns focus to the toggle. The open panel is a disclosure, not a modal dialog: focus is not trapped and content behind the backdrop is not made inert. Colors meet WCAG 2.1 AA contrast (maroon primary, warm orange accent, neutral background), focus indicators are visible, and motion is disabled under `prefers-reduced-motion`.
+
+The layout also observes `matchMedia('(min-width: 1024px)')` to synchronize mobile state and keyboard focus with CSS. Entering desktop closes mobile navigation and removes its backdrop. Focus transfers from the disappearing toggle or close button to the visible Dashboard link; focus already on Dashboard or other visible content stays unchanged. Returning to mobile keeps navigation closed and transfers focus from the now-hidden Dashboard link to the menu toggle. Shell-scoped focus/blur capture handles browsers that clear focus before emitting the media-query event, without a document-wide focus listener. Ordinary mobile closure still restores toggle focus; desktop Escape and Dashboard navigation do not focus hidden mobile controls. The media-query listener is removed on unmount. Regression tests mock media events and blur ordering; only the separate Edge checks exercise actual CSS breakpoint behavior (see M01-T03 remediation in the milestone record).
+
+`config/env.ts` exposes `getApiBaseUrl()`, which reads `import.meta.env.VITE_API_BASE_URL` (typed in `vite-env.d.ts`) and validates it on use: required, absolute http/https, no credentials, query, or fragment, trailing slashes removed. Errors never echo the rejected value. `.env.example` documents the variable; `.env.local` and other `.env.*` files are ignored by Git.
+
+Tests use Vitest with jsdom and React Testing Library, querying by role and accessible name. They cover the shell landmarks and branding, dashboard content, navigation (only Dashboard is a link), mobile menu open/close and focus management, keyboard operation (Tab, Enter, Space, Escape), and configuration validation. They need no backend, database, or network. Linting uses ESLint 10 with type-aware typescript-eslint rules plus React Hooks and React Refresh rules. `eslint-plugin-jsx-a11y` is not used because it does not support ESLint 10; accessibility relies on role-based tests and manual checks.
+
 ## Deferred components
 
-Domain models, business tables, enrollment, billing, payments, authentication, and a React + Vite + TypeScript frontend are deferred. Keep the initial single-API structure until real module requirements justify further separation.
+Domain models, business tables, enrollment, billing, payments, authentication, frontend business screens, routing, and frontend/backend communication (M01-T04, including backend CORS configuration) are deferred. Keep the initial single-API structure until real module requirements justify further separation.
 
 
 ## Development exception and production gate

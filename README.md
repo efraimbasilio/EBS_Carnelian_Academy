@@ -4,7 +4,7 @@ Local-first Enrollment & Billing Management System V1 for a preschool and elemen
 
 ## Current scope
 
-M01-T01 provides the backend API foundation. M01-T02 adds the SQL Server Express / EF Core 8 database foundation (empty DbContext, baseline migration, database health endpoint). Milestone M01 is **in progress**. Enrollment, billing, payments, authentication, business tables, and frontend code are not implemented.
+M01-T01 provides the backend API foundation. M01-T02 adds the SQL Server Express / EF Core 8 database foundation (empty DbContext, baseline migration, database health endpoint). M01-T03 adds a React + Vite + TypeScript frontend shell (completed and approved for local development only; PPG-001 remains OPEN and BLOCKING for production); it does not call the API yet. Milestone M01 is **in progress**. Enrollment, billing, payments, authentication, business tables, and frontend business screens are not implemented.
 
 ## Structure
 
@@ -14,6 +14,8 @@ backend/
   CarnelianAcademy.Api/       ASP.NET Core controllers, configuration, Swagger
     Data/                     EF Core DbContext, connectivity check, migrations
   CarnelianAcademy.Tests/     xUnit integration tests using WebApplicationFactory
+frontend/
+  carnelian-academy-web/      React + Vite + TypeScript application shell (see "Frontend")
 docs/
   architecture.md
   decisions.md
@@ -153,6 +155,54 @@ Without the variable, that test is reported as skipped.
 ASP.NET Core loads `appsettings.json`, then `appsettings.{Environment}.json`, user secrets (Development), environment variables, and command-line overrides. Launch profiles set Development locally; deployments should use Production. Production uses generic Problem Details for unhandled exceptions and HSTS; configure HTTPS endpoints/certificates for deployment. Restrict `AllowedHosts` to deployment hostnames before exposing the service beyond the local machine.
 
 Do not put secrets, credentials, student data, or local certificates in source control. Use Windows authentication locally; if SQL authentication is ever required, store its credentials in user secrets or environment variables. Authentication and authorization policy design remain future work.
+
+## Frontend
+
+`frontend/carnelian-academy-web` is an independently buildable React single-page application. M01-T03 provides only the application shell (header, responsive sidebar, dashboard placeholder) and typed API configuration; it makes **no HTTP requests** and does not depend on a running backend. It is a development preview: no authentication, no real student or financial data, and no production deployment (D009; PPG-001 remains OPEN and BLOCKING).
+
+| Component | Version |
+| --- | --- |
+| Node.js | 24.14.0 verified; supported range `^22.13.0` or `^24.0.0` (`engines` in package.json) |
+| npm | 11.16.0 verified |
+| React / React DOM | 19.3.1 |
+| Vite / @vitejs/plugin-react | 8.3.8 / 6.3.0 |
+| TypeScript | 6.0.3 (TypeScript 7 is not yet supported by typescript-eslint) |
+| ESLint / typescript-eslint | 10.15.0 / 8.73.0 |
+| Vitest / jsdom | 5.1.1 / 29.1.1 (jsdom 30+ requires Node 24.15 or later) |
+| React Testing Library / jest-dom / user-event | 16.3.3 / 8.0.0 / 14.6.13 |
+
+Setup and commands (run inside `frontend/carnelian-academy-web`):
+
+```powershell
+Set-Location frontend/carnelian-academy-web
+npm install            # installs the versions locked in package-lock.json (use `npm ci` for a clean install)
+npm run dev            # development server at http://localhost:5173 (fixed port; fails if 5173 is busy)
+npm run lint           # ESLint with type-aware TypeScript rules
+npm run test           # Vitest in watch mode
+npm run test:run       # Vitest once, then exit
+npm run build          # type-check (tsc -b) and production build to dist/
+npm run preview        # serve the built dist/ locally
+```
+
+The dev server listens on localhost only. Stop it with Ctrl+C.
+
+On Windows, run Vitest from a terminal whose working directory uses an upper-case drive letter (`C:\...`). If the current directory is reported as `c:\...` (as some VS Code terminals do), Vitest can load its runner twice and every suite fails with "failed to find the current suite" or "Cannot read properties of undefined (reading 'config')". Fix the current terminal with:
+
+```powershell
+Set-Location ($PWD.Path.Substring(0,1).ToUpper() + $PWD.Path.Substring(1))
+```
+
+### API base URL
+
+The frontend reads the API location from `VITE_API_BASE_URL` through `src/config/env.ts`. Copy the example file and adjust it if your API runs elsewhere:
+
+```powershell
+Copy-Item .env.example .env.local
+# .env.local (ignored by Git):
+# VITE_API_BASE_URL=https://localhost:7159
+```
+
+The value must be an absolute `http` or `https` URL without credentials, query string, or fragment; a trailing slash is removed. It is validated when first used, with a clear `ConfigurationError` if it is missing or malformed. Every `VITE_` variable is embedded in the browser bundle, so never put tokens or secrets in it. No production address is configured. M01-T03 does not use the value yet; calling the API, and the backend CORS configuration that requires, belong to M01-T04.
 
 See [architecture](docs/architecture.md), [decisions](docs/decisions.md), and [M01 status](docs/milestones/M01.md).
 
