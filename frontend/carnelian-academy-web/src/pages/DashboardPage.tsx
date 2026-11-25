@@ -1,3 +1,5 @@
+import { SystemConnectivity } from '../components/dashboard/SystemConnectivity.tsx'
+
 const PLANNED_MODULES = [
   { title: 'Students', description: 'Student information records.' },
   { title: 'Enrollments', description: 'Enrollment management.' },
@@ -11,9 +13,12 @@ export function DashboardPage() {
       <h1 className="dashboard__title">Welcome to Carnelian Academy</h1>
       <p className="dashboard__subtitle">Enrollment &amp; Billing Management System</p>
       <p className="dashboard__intro">
-        This system is under development. This preview shows the application layout only: it does not
-        display live data, and the modules below are not yet available.
+        This system is under development. This preview shows the application layout and the live
+        connectivity status of the local API and database. It displays no student or financial data,
+        and the modules below are not yet available.
       </p>
+
+      <SystemConnectivity />
 
       <section className="planned-modules" aria-labelledby="planned-modules-heading">
         <h2 id="planned-modules-heading">Planned modules</h2>

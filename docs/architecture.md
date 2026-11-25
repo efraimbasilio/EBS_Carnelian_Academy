@@ -2,13 +2,15 @@
 
 ## Scope
 
-V1 is a local-first school management application for approximately 300 students. Its planned modules are Student Information and Enrollment Management, and Billing and Collections Management. M01-T01 established a running API and integration testing infrastructure. M01-T02 adds the database foundation without business entities. M01-T03 adds a frontend application shell with no backend communication.
+V1 is a local-first school management application for approximately 300 students. Its planned modules are Student Information and Enrollment Management, and Billing and Collections Management. M01-T01 established a running API and integration testing infrastructure. M01-T02 adds the database foundation without business entities. M01-T03 adds a frontend application shell. M01-T04 connects the frontend to the existing health endpoints, with a Development-only CORS policy.
 
 ## Backend
 
 A single ASP.NET Core Web API targets .NET 8 and uses C# with nullable reference types and implicit usings. The application composition root is Program.cs. Built-in dependency injection registers controllers, endpoint discovery, Swagger generation, Problem Details, the EF Core DbContext, and the database connectivity check. Controllers own REST/JSON routes; no extra service/repository layers are introduced without business requirements.
 
 HealthController exposes anonymous GET /health and returns a typed response. This is a process health check with no I/O and no database dependency; it returns synchronously. GET /health/database is a separate anonymous endpoint that performs a real database connectivity check asynchronously with the request cancellation token. It returns HTTP 200 `{"status":"Healthy","database":"Connected"}` or HTTP 503 `{"status":"Unhealthy","database":"Unavailable"}`.
+
+Development CORS (M01-T04, decision D012, approved for local development): after HTTPS redirection, Program.cs applies the `LocalDevelopmentFrontend` policy in Development to actual GET requests and OPTIONS preflights asking for GET. `Configuration/DevelopmentCors` reads `Cors:DevelopmentFrontendOrigins` (committed: `http://localhost:5173`), accepts explicitly configured HTTP(S) origins on exactly `localhost`, `127.0.0.1`, or `[::1]`, and normalizes an optional trailing slash away. Invalid origins fail startup without echoing the input. The policy allows no credentials or wildcard origins. CORS controls whether a browser exposes the response to another origin. Routing and authorization are handled separately. The Development policy is absent in Production. The allowed origin can read the existing health contracts, including the database 503 response.
 
 Configuration follows standard environment-specific ASP.NET Core precedence. Swagger UI and OpenAPI are registered in the middleware pipeline only in Development. Other environments use exception handling with generic Problem Details and HSTS. HTTPS redirection is enabled; local launch profiles provide an HTTPS endpoint. Production requires a configured certificate and deployment-specific host restrictions.
 
@@ -32,7 +34,7 @@ The separate xUnit project references the API and uses WebApplicationFactory wit
 
 ## Frontend
 
-`frontend/carnelian-academy-web` is a React 19 + Vite 8 + TypeScript 6 single-page application, built and tested independently of the backend (decision D011). It shares no source files with the backend and, in M01-T03, makes no HTTP requests.
+`frontend/carnelian-academy-web` is a React 19 + Vite 8 + TypeScript 6 single-page application, built and tested independently of the backend (decision D011). It shares no source files with the backend; since M01-T04 it reads the backend health endpoints over REST/JSON.
 
 ```text
 src/
@@ -42,10 +44,16 @@ src/
     AppLayout.tsx              shell: skip link, header, sidebar, main; owns mobile-menu state and focus
     Header.tsx                 brand, current section, menu toggle (aria-expanded / aria-controls)
     Sidebar.tsx                <nav aria-label="Main">; Dashboard link plus "Coming soon" entries
-  pages/DashboardPage.tsx      development-preview landing page, no data
-  config/env.ts                typed, lazily validated VITE_API_BASE_URL
+  components/dashboard/
+    SystemConnectivity.tsx     System connectivity panel: status list (role="status") and Refresh button
+    useSystemHealth.ts         check orchestration, status mapping, single-flight/abort handling
+  pages/DashboardPage.tsx      development-preview landing page; renders SystemConnectivity
+  api/http.ts                  native-fetch GET helper: URL joining, timeout, cancellation, typed errors
+  api/health.ts                /health and /health/database clients with runtime contract validation
+  config/env.ts                typed, lazily validated VITE_API_BASE_URL and VITE_API_TIMEOUT_MS
   styles/global.css            design tokens and responsive layout
-  test/setup.ts                jest-dom matchers and Testing Library cleanup
+  test/setup.ts                jest-dom matchers, synthetic env, network-free fetch stub, cleanup
+  test/fetch.ts                fetch stubs and response helpers for tests
 ```
 
 There is no router: Dashboard is the only page. Students, Enrollment, Billing & Payments, Reports, and Settings are listed as non-interactive "Coming soon" entries rather than links, so no route points at unimplemented functionality. No component library, state library, or HTTP client is used.
@@ -56,11 +64,21 @@ The layout also observes `matchMedia('(min-width: 1024px)')` to synchronize mobi
 
 `config/env.ts` exposes `getApiBaseUrl()`, which reads `import.meta.env.VITE_API_BASE_URL` (typed in `vite-env.d.ts`) and validates it on use: required, absolute http/https, no credentials, query, or fragment, trailing slashes removed. Errors never echo the rejected value. `.env.example` documents the variable; `.env.local` and other `.env.*` files are ignored by Git.
 
-Tests use Vitest with jsdom and React Testing Library, querying by role and accessible name. They cover the shell landmarks and branding, dashboard content, navigation (only Dashboard is a link), mobile menu open/close and focus management, keyboard operation (Tab, Enter, Space, Escape), and configuration validation. They need no backend, database, or network. Linting uses ESLint 10 with type-aware typescript-eslint rules plus React Hooks and React Refresh rules. `eslint-plugin-jsx-a11y` is not used because it does not support ESLint 10; accessibility relies on role-based tests and manual checks.
+### Frontend/API integration (M01-T04)
+
+The browser calls the API directly at `VITE_API_BASE_URL` (cross-origin, allowed by the Development CORS policy). A Vite dev proxy was not used: proxying to the self-signed HTTPS API would require disabling TLS verification in the proxy, and it would hide the real cross-origin behavior.
+
+`api/http.ts` (`getJson`) is the only code that calls `fetch`. It resolves an endpoint path against the validated base URL and checks the normalized origin and base-path boundary. It rejects absolute URLs, literal and encoded dot segments, encoded path separators, queries, and fragments. It sends `GET` with `Accept: application/json`, `credentials: 'omit'`, `cache: 'no-store'`, and `redirect: 'error'`, and applies a finite timeout (default 20 s, `VITE_API_TIMEOUT_MS`) through an internal `AbortController` that also follows the caller's signal. It parses JSON only for status codes defined by the endpoint contract. Failures become `ApiRequestError` with kind `network`, `timeout`, `http-status`, or `invalid-response` and a fixed message. Caller cancellation becomes `ApiRequestAbortedError`. Browsers report DNS, connection, TLS certificate, and CORS failures identically, so they share the `network` kind.
+
+`api/health.ts` validates the contracts at runtime: `/health` must be HTTP 200 `{"status":"Healthy","application":"Carnelian Academy API"}`; `/health/database` must be HTTP 200 `{"status":"Healthy","database":"Connected"}` or HTTP 503 `{"status":"Unhealthy","database":"Unavailable"}`. Status code and body must agree; extra properties are tolerated; anything else is `invalid-response`.
+
+`useSystemHealth` checks `/health` first and `/health/database` only after the API answered, so an unreachable API yields database "Not checked" rather than an inferred result. It runs one check on mount and one per Refresh; a Refresh during a check is ignored (single flight), a result from a superseded check is discarded, and the in-flight check is aborted on unmount (including React StrictMode's development remount). The Refresh button uses `aria-disabled` instead of `disabled` while checking so keyboard focus is not lost. Status text sits in a `role="status"` live region with `aria-busy` during checks; each status has a text label, with color only supplementary.
+
+Tests use Vitest with jsdom and React Testing Library, querying by role and accessible name. They cover the shell landmarks and branding, dashboard content, navigation (only Dashboard is a link), mobile menu open/close and focus management, keyboard operation (Tab, Enter, Space, Escape), and configuration validation. Client and dashboard tests stub `fetch` (success, 503, unreachable, HTTP 500/502, invalid JSON, wrong shape, timeout with fake timers, abort, StrictMode stale response, rapid refresh, unmount). The setup file installs a default stub that never touches the network, so tests need no backend, database, or network. Backend `DevelopmentCorsTests` cover the allowed origin, rejected origins, preflight, the 503 response, Production, and origin validation. Linting uses ESLint 10 with type-aware typescript-eslint rules plus React Hooks and React Refresh rules. `eslint-plugin-jsx-a11y` is not used because it does not support ESLint 10; accessibility relies on role-based tests and manual checks.
 
 ## Deferred components
 
-Domain models, business tables, enrollment, billing, payments, authentication, frontend business screens, routing, and frontend/backend communication (M01-T04, including backend CORS configuration) are deferred. Keep the initial single-API structure until real module requirements justify further separation.
+Domain models, business tables, enrollment, billing, payments, authentication, frontend business screens, routing, a general-purpose API client (authentication, interceptors, retries), status polling, production CORS/deployment configuration, and automated browser end-to-end tests are deferred. Keep the initial single-API structure until real module requirements justify further separation.
 
 
 ## Development exception and production gate

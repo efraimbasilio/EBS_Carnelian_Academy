@@ -1,5 +1,8 @@
+using CarnelianAcademy.Api.Configuration;
 using CarnelianAcademy.Api.Data;
+using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Net.Http.Headers;
 
 const string DatabaseConnectionStringName = "CarnelianAcademyDatabase";
 
@@ -16,10 +19,26 @@ builder.Services.AddDbContext<CarnelianAcademyDbContext>((services, options) =>
     options.UseSqlServer(GetRequiredConnectionString(services.GetRequiredService<IConfiguration>())));
 builder.Services.AddScoped<IDatabaseConnectivityCheck, EfCoreDatabaseConnectivityCheck>();
 
+// Development only: allow the configured local frontend origin(s) to make simple GET requests.
+// No credentials or wildcard origins. The named policy exists only in Development.
+// Origins are resolved from configuration when the options are created, like the connection string.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors();
+    builder.Services.AddOptions<CorsOptions>().Configure<IConfiguration>((options, configuration) =>
+        options.AddPolicy(DevelopmentCors.PolicyName, policy => policy
+            .WithOrigins(DevelopmentCors.GetAllowedOrigins(configuration))
+            .WithMethods(HttpMethods.Get)));
+}
+
 var app = builder.Build();
 
 // Fail fast at startup with a clear message instead of on the first database request.
 GetRequiredConnectionString(app.Configuration);
+if (app.Environment.IsDevelopment())
+{
+    DevelopmentCors.GetAllowedOrigins(app.Configuration);
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -33,6 +52,17 @@ else
 }
 
 app.UseHttpsRedirection();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseWhen(context =>
+        HttpMethods.IsGet(context.Request.Method)
+        || (HttpMethods.IsOptions(context.Request.Method)
+            && context.Request.Headers.ContainsKey(HeaderNames.Origin)
+            && HttpMethods.IsGet(context.Request.Headers[HeaderNames.AccessControlRequestMethod].ToString())),
+        branch => branch.UseCors(DevelopmentCors.PolicyName));
+}
+
 app.MapControllers();
 app.Run();
 

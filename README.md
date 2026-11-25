@@ -4,7 +4,7 @@ Local-first Enrollment & Billing Management System V1 for a preschool and elemen
 
 ## Current scope
 
-M01-T01 provides the backend API foundation. M01-T02 adds the SQL Server Express / EF Core 8 database foundation (empty DbContext, baseline migration, database health endpoint). M01-T03 adds a React + Vite + TypeScript frontend shell (completed and approved for local development only; PPG-001 remains OPEN and BLOCKING for production); it does not call the API yet. Milestone M01 is **in progress**. Enrollment, billing, payments, authentication, business tables, and frontend business screens are not implemented.
+M01-T01 provides the backend API foundation. M01-T02 adds the SQL Server Express / EF Core 8 database foundation (empty DbContext, baseline migration, database health endpoint). M01-T03 adds a React + Vite + TypeScript frontend shell (completed and approved for local development only; PPG-001 remains OPEN and BLOCKING for production). M01-T04 connects the dashboard to the existing health endpoints and adds a Development-only CORS policy (completed and approved for local development only). Milestone M01 is **in progress**. Enrollment, billing, payments, authentication, business tables, and frontend business screens are not implemented.
 
 ## Structure
 
@@ -24,7 +24,7 @@ docs/
 
 ## Local setup (Windows / PowerShell)
 
-Use Git, SQL Server Express, and the verified local .NET 8 SDK 8.0.428 / runtime 8.0.34 installation described below, with `dotnet-ef` 8.0.34. VS Code with C# tooling is recommended. Node.js is intended for a later task. Microsoft support for .NET 8 ended on 10 November 2026; the final servicing release 8.0.34 was released that day. Patching does not restore support. D009 is explicitly **APPROVED: DEVELOPMENT ONLY**: local machines, synthetic/test data only, no production deployment, and no handling of real student or payment records. Migration to a supported LTS .NET runtime is mandatory before production. **PPG-001 remains OPEN and BLOCKING for production readiness** (see [decisions](docs/decisions.md) and [M01](docs/milestones/M01.md)).
+Use Git, SQL Server Express, and the verified local .NET 8 SDK 8.0.428 / runtime 8.0.34 installation described below, with `dotnet-ef` 8.0.34. VS Code with C# tooling is recommended. Node.js and npm are required for the frontend (see "Frontend"). Microsoft support for .NET 8 ended on 10 November 2026; the final servicing release 8.0.34 was released that day. Patching does not restore support. D009 is explicitly **APPROVED: DEVELOPMENT ONLY**: local machines, synthetic/test data only, no production deployment, and no handling of real student or payment records. Migration to a supported LTS .NET runtime is mandatory before production. **PPG-001 remains OPEN and BLOCKING for production readiness** (see [decisions](docs/decisions.md) and [M01](docs/milestones/M01.md)).
 
 | Component | Version / value |
 | --- | --- |
@@ -158,7 +158,7 @@ Do not put secrets, credentials, student data, or local certificates in source c
 
 ## Frontend
 
-`frontend/carnelian-academy-web` is an independently buildable React single-page application. M01-T03 provides only the application shell (header, responsive sidebar, dashboard placeholder) and typed API configuration; it makes **no HTTP requests** and does not depend on a running backend. It is a development preview: no authentication, no real student or financial data, and no production deployment (D009; PPG-001 remains OPEN and BLOCKING).
+`frontend/carnelian-academy-web` is an independently buildable React single-page application. M01-T03 provides the application shell (header, responsive sidebar, dashboard placeholder) and typed API configuration. M01-T04 adds a System connectivity panel that calls `GET /health` and `GET /health/database` (see "Frontend/API integration"); the frontend still builds and its tests run without a backend. It is a development preview: no authentication, no real student or financial data, and no production deployment (D009; PPG-001 remains OPEN and BLOCKING).
 
 | Component | Version |
 | --- | --- |
@@ -202,7 +202,61 @@ Copy-Item .env.example .env.local
 # VITE_API_BASE_URL=https://localhost:7159
 ```
 
-The value must be an absolute `http` or `https` URL without credentials, query string, or fragment; a trailing slash is removed. It is validated when first used, with a clear `ConfigurationError` if it is missing or malformed. Every `VITE_` variable is embedded in the browser bundle, so never put tokens or secrets in it. No production address is configured. M01-T03 does not use the value yet; calling the API, and the backend CORS configuration that requires, belong to M01-T04.
+The value must be an absolute `http` or `https` URL without credentials, query string, or fragment; a trailing slash is removed. A base path is preserved (`https://localhost:7159/api` calls `https://localhost:7159/api/health`). It is validated when first used, with a clear `ConfigurationError` if it is missing or malformed. Every `VITE_` variable is embedded in the browser bundle, so never put tokens or secrets in it. No production address is configured. Vite reads `.env.local` only when the dev server or build starts; restart `npm run dev` after changing it.
+
+`VITE_API_TIMEOUT_MS` is optional and sets the per-request timeout in milliseconds. If it is omitted or empty, the default of 20,000 milliseconds is used; this exceeds SqlClient's default 15-second connect timeout, so a slow database check can still return its 503 contract. A value that is explicitly supplied must be a whole number from 1000 to 120000; any other value is rejected with a `ConfigurationError` and no request is sent.
+
+### Frontend/API integration (M01-T04)
+
+The dashboard's **System connectivity** panel checks the backend on page load and when **Refresh status** is pressed. There is no polling and no automatic retry.
+
+| Service | Status | Meaning |
+| --- | --- | --- |
+| Backend API | Checking | `GET /health` is in progress. |
+| Backend API | Connected | `GET /health` returned HTTP 200 with the exact health contract. |
+| Backend API | Unavailable | Network/CORS/certificate failure, timeout, unexpected HTTP status, invalid JSON, or an unexpected body. |
+| Backend API | Configuration error | `VITE_API_BASE_URL` or `VITE_API_TIMEOUT_MS` is missing or invalid; no request is sent. |
+| Database | Connected / Unavailable | The API's own report: HTTP 200 `Connected` or HTTP 503 `Unavailable`. Also Unavailable if the database check fails after the API answered. |
+| Database | Not checked | The API was unavailable or not configured, so the database was **not** verified either way. |
+
+Messages are fixed text; exception details, URLs, and response bodies are never displayed.
+
+Local startup (two terminals; select the patched .NET 8 installation first, see "Local setup"):
+
+```powershell
+# Terminal 1 - API (HTTPS profile, Development)
+dotnet run --project backend/CarnelianAcademy.Api --launch-profile https
+
+# Terminal 2 - frontend
+Set-Location frontend/carnelian-academy-web
+Copy-Item .env.example .env.local   # once; VITE_API_BASE_URL=https://localhost:7159
+npm run dev                         # open http://localhost:5173
+```
+
+HTTPS certificate: the browser must trust the ASP.NET Core development certificate, otherwise `fetch` fails and the panel shows the API as Unavailable ("could not be reached ... development HTTPS certificate is trusted"). Check and trust it with the official .NET tooling:
+
+```powershell
+dotnet dev-certs https --check --trust   # exit code 0 when a trusted certificate exists
+dotnet dev-certs https --trust           # adds it to the current user's trusted roots (Windows shows a confirmation dialog)
+```
+
+Restart the browser after trusting. Do not disable certificate validation. For HTTP-only troubleshooting, run the API with `--launch-profile http` and set `VITE_API_BASE_URL=http://localhost:5082`; do not point the frontend at `http://localhost:5082` while the HTTPS profile is running, because that profile redirects HTTP to HTTPS and the client refuses redirects.
+
+#### Development CORS
+
+The browser treats `http://localhost:5173` and `https://localhost:7159` as different origins, so the API allows the frontend through a CORS policy that exists **only in the Development environment** (decision D012, **APPROVED — LOCAL DEVELOPMENT** by the repository owner):
+
+- Allowed origins come from `Cors:DevelopmentFrontendOrigins` in `appsettings.Development.json` (committed value: `http://localhost:5173`). To override it locally, set an environment variable in the terminal that starts the API. Environment variables take precedence over `appsettings.Development.json`, and `__` stands for the `:` separator, with `__0`, `__1`, and so on for each list entry:
+
+  ```powershell
+  $env:Cors__DevelopmentFrontendOrigins__0 = "http://localhost:5174"
+  dotnet run --project backend/CarnelianAcademy.Api --launch-profile https
+  ```
+
+  The variable applies only to that terminal session; remove it with `Remove-Item Env:Cors__DevelopmentFrontendOrigins__0`. The API project has no `UserSecretsId`, so `dotnet user-secrets` is not a supported way to override this setting.
+- Each origin must be `http`/`https` on `localhost`, `127.0.0.1`, or `[::1]`, with no path, query, fragment, credentials, or wildcard. An invalid entry stops the API at startup without echoing the value. LAN addresses and other hosts are rejected.
+- The policy exposes GET responses to configured origins and handles OPTIONS preflights requesting GET. Actual non-GET responses receive no allow-origin header. The policy grants no credential permission or wildcard origin. CORS governs browser response access. Server-side routing and authorization remain separate.
+- The Development policy is inactive in Production and other non-Development environments, even if the setting is present.
 
 See [architecture](docs/architecture.md), [decisions](docs/decisions.md), and [M01 status](docs/milestones/M01.md).
 

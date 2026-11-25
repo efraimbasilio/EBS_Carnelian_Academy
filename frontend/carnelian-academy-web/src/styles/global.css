@@ -387,6 +387,119 @@ p {
   font-weight: 600;
 }
 
+.connectivity {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem 1.125rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+}
+
+.connectivity__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.connectivity__header h2 {
+  font-size: 1.25rem;
+}
+
+.button {
+  min-height: 2.5rem;
+  padding: 0.375rem 1rem;
+  border: 2px solid var(--color-maroon-700);
+  border-radius: var(--radius);
+  background: var(--color-maroon-700);
+  color: var(--color-on-maroon);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--color-maroon-900);
+  border-color: var(--color-maroon-900);
+}
+
+/* Still focusable while a check runs; shown as busy with AA-contrast colors. */
+.button[aria-disabled='true'] {
+  background: var(--color-maroon-50);
+  color: var(--color-maroon-700);
+  cursor: progress;
+}
+
+.connectivity__list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.connectivity__item {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.connectivity__name {
+  font-weight: 600;
+}
+
+.connectivity__value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin: 0;
+  min-width: 0;
+}
+
+.connectivity__detail {
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* Every state has a text label; color is supplementary. All pairs meet WCAG 2.1 AA (4.5:1). */
+.status-pill {
+  flex: none;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.status-pill[data-state='checking'],
+.status-pill[data-state='not-checked'] {
+  background: #eef0f2;
+  color: var(--color-text-muted);
+}
+
+.status-pill[data-state='connected'] {
+  background: #e6f4ea;
+  color: #1e6b34;
+}
+
+.status-pill[data-state='unavailable'] {
+  background: var(--color-maroon-50);
+  color: var(--color-maroon-700);
+}
+
+.status-pill[data-state='configuration-error'] {
+  background: var(--color-orange-50);
+  color: var(--color-orange-900);
+}
+
+@media (min-width: 640px) {
+  .connectivity__item {
+    grid-template-columns: 9rem minmax(0, 1fr);
+    align-items: baseline;
+  }
+}
+
 /* Tablet and larger: show the section name in the header. */
 @media (min-width: 640px) {
   .app-header__section {

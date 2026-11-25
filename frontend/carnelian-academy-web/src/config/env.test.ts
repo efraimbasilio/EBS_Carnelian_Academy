@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ConfigurationError, getApiBaseUrl, parseApiBaseUrl } from './env.ts'
+import {
+  ConfigurationError,
+  DEFAULT_API_TIMEOUT_MS,
+  getApiBaseUrl,
+  getApiTimeoutMs,
+  parseApiBaseUrl,
+  parseApiTimeoutMs,
+} from './env.ts'
 
 describe('parseApiBaseUrl', () => {
   it.each([
@@ -70,6 +77,35 @@ describe('parseApiBaseUrl', () => {
 
     expect(attempt).toThrow(/must not contain credentials/)
     expect(attempt).not.toThrow(/example-secret|example-user/)
+  })
+})
+
+describe('parseApiTimeoutMs', () => {
+  it.each([undefined, '', '  '])('uses the 20-second default when unset (%j)', (raw) => {
+    expect(parseApiTimeoutMs(raw)).toBe(DEFAULT_API_TIMEOUT_MS)
+    expect(DEFAULT_API_TIMEOUT_MS).toBe(20_000)
+  })
+
+  it.each([
+    ['1000', 1_000],
+    [' 15000 ', 15_000],
+    ['120000', 120_000],
+  ])('accepts %j', (raw, expected) => {
+    expect(parseApiTimeoutMs(raw)).toBe(expected)
+  })
+
+  it.each(['0', '999', '120001', '-5000', '1.5', '1e4', '5s', 'Infinity', 'NaN', '0x3e8', '99999999999999999999'])(
+    'rejects %j with a range message',
+    (raw) => {
+      expect(() => parseApiTimeoutMs(raw)).toThrow(ConfigurationError)
+      expect(() => parseApiTimeoutMs(raw)).toThrow(/VITE_API_TIMEOUT_MS must be a whole number of milliseconds from 1000 to 120000/)
+    },
+  )
+
+  it('reads VITE_API_TIMEOUT_MS from the Vite environment', () => {
+    vi.stubEnv('VITE_API_TIMEOUT_MS', '5000')
+
+    expect(getApiTimeoutMs()).toBe(5_000)
   })
 })
 

@@ -300,3 +300,13 @@ Status: **APPROVED — LOCAL DEVELOPMENT** (repository owner; recorded 2026-11-2
 - TypeScript is pinned to `~6.0.3` instead of the template's 7.0, because typescript-eslint 8.73 supports `>=4.8.4 <6.1.0`.
 - Vitest 5 + jsdom + React Testing Library. jsdom is held at 29.1.1 because jsdom 30+ requires Node `^24.15.0` and the verified local Node is 24.14.0; upgrading Node would allow a newer jsdom.
 - No router, component library, state library, or HTTP client until a task requires one. API configuration is a single typed, validated `VITE_API_BASE_URL`; browser-visible variables must never contain secrets.
+
+## D012 - Development cross-origin access from the frontend to the API
+
+Status: **APPROVED — LOCAL DEVELOPMENT** (M01-T04, 2026-11-23; approval explicitly provided by the repository owner following the independent Code Guardian verdict PASS WITH WARNINGS). The technical rules below are unchanged from the reviewed proposal. CORS is not a replacement for authentication or authorization. Local development only under D009; PPG-001 remains OPEN and BLOCKING for production. D011 is unchanged.
+
+- The Vite dev server (`http://localhost:5173`) calls the API (`https://localhost:7159`) directly, cross-origin, using native `fetch`; no HTTP library is added.
+- The policy is applied only in Development, after HTTPS redirection. The exact configured HTTP(S) origins come from `Cors:DevelopmentFrontendOrigins` (committed: `http://localhost:5173`). Supported hosts are exactly `localhost`, `127.0.0.1`, and `[::1]`. A port and trailing slash are optional. Paths, queries, fragments, credentials, wildcards, and other hosts are rejected at startup.
+- The policy exposes actual GET responses to the configured origins and handles OPTIONS preflights requesting GET. Actual non-GET responses and preflights requesting another method receive no allow-origin header. The policy grants no credential permission and is absent in Production. CORS controls whether browsers expose responses to another origin. Server-side routing and authorization determine which requests the API serves.
+- Alternative rejected: a Vite dev-server proxy. Proxying to the self-signed development HTTPS endpoint would need TLS verification disabled in the proxy (`secure: false`), and it would hide the real cross-origin behavior the frontend will face.
+- Production CORS, hosting topology (same-origin hosting or a reverse proxy), and HTTPS certificates are deferred to the deployment/security foundation work and are not approved by this decision.

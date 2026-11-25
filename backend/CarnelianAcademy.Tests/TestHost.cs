@@ -23,10 +23,12 @@ internal static class TestHost
     /// application's own configuration (for example appsettings.Development.json).
     /// </param>
     /// <param name="configureTestServices">Optional service replacements applied after the application's registrations.</param>
+    /// <param name="configuration">Optional extra in-memory configuration values, applied last.</param>
     public static WebApplicationFactory<Program> Create(
         string environment,
         string? connectionString = UnreachableConnectionString,
-        Action<IServiceCollection>? configureTestServices = null)
+        Action<IServiceCollection>? configureTestServices = null,
+        IReadOnlyDictionary<string, string?>? configuration = null)
     {
         return new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -34,11 +36,17 @@ internal static class TestHost
 
             if (connectionString is not null)
             {
-                builder.ConfigureAppConfiguration((_, configuration) =>
-                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                builder.ConfigureAppConfiguration((_, configurationBuilder) =>
+                    configurationBuilder.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         ["ConnectionStrings:CarnelianAcademyDatabase"] = connectionString
                     }));
+            }
+
+            if (configuration is not null)
+            {
+                builder.ConfigureAppConfiguration((_, configurationBuilder) =>
+                    configurationBuilder.AddInMemoryCollection(configuration));
             }
 
             if (configureTestServices is not null)

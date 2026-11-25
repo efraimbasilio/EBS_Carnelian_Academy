@@ -2,8 +2,8 @@
  * Typed access to frontend build-time configuration.
  *
  * Values are read lazily and validated when used, so a missing or malformed setting fails
- * with a clear message at the call site instead of at application start. M01-T03 defines the
- * configuration only; no HTTP requests are made yet.
+ * with a clear message at the call site instead of at application start. The API client
+ * (src/api) reads these values when it makes a request.
  */
 
 export class ConfigurationError extends Error {
@@ -55,4 +55,35 @@ export function parseApiBaseUrl(rawValue: string | undefined): string {
 /** Returns the validated API base URL from the Vite environment. */
 export function getApiBaseUrl(env: Pick<ImportMetaEnv, 'VITE_API_BASE_URL'> = import.meta.env): string {
   return parseApiBaseUrl(env.VITE_API_BASE_URL)
+}
+
+const API_TIMEOUT_KEY = 'VITE_API_TIMEOUT_MS'
+
+/**
+ * Default per-request timeout. It exceeds SqlClient's default 15-second connect timeout, so a slow
+ * database check can still return its HTTP 503 contract before the browser gives up.
+ */
+export const DEFAULT_API_TIMEOUT_MS = 20_000
+export const MIN_API_TIMEOUT_MS = 1_000
+export const MAX_API_TIMEOUT_MS = 120_000
+
+/** Validates an optional request timeout in milliseconds; a missing value uses the default. */
+export function parseApiTimeoutMs(rawValue: string | undefined): number {
+  const value = rawValue?.trim()
+  if (!value) {
+    return DEFAULT_API_TIMEOUT_MS
+  }
+
+  const timeoutMs = /^\d+$/.test(value) ? Number(value) : Number.NaN
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < MIN_API_TIMEOUT_MS || timeoutMs > MAX_API_TIMEOUT_MS) {
+    throw new ConfigurationError(
+      `${API_TIMEOUT_KEY} must be a whole number of milliseconds from ${MIN_API_TIMEOUT_MS} to ${MAX_API_TIMEOUT_MS}.`,
+    )
+  }
+  return timeoutMs
+}
+
+/** Returns the validated API request timeout from the Vite environment. */
+export function getApiTimeoutMs(env: Pick<ImportMetaEnv, 'VITE_API_TIMEOUT_MS'> = import.meta.env): number {
+  return parseApiTimeoutMs(env.VITE_API_TIMEOUT_MS)
 }
